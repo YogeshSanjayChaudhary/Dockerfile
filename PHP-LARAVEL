@@ -1,0 +1,38 @@
+FROM 676985862151.dkr.ecr.ap-south-1.amazonaws.com/eduisfun-backend-basic:latest
+
+RUN apt-get update -y
+#APP
+RUN curl -s https://getcomposer.org/installer -o composer-setup.php
+RUN php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+
+COPY ./000-default.conf /etc/apache2/sites-available/
+COPY ./default-ssl.conf /etc/apache2/sites-available/
+COPY ./default-ssl.conf /etc/apache2/sites-enabled/
+COPY ./server.crt /etc/ssl/
+COPY ./server.key /etc/ssl/
+WORKDIR /var/www/html/
+COPY ./payment/ /var/www/html/payment
+RUN chown -R www-data:www-data /var/www/html/payment
+RUN chmod -R 755 /var/www/html/payment/
+RUN chmod -R 775 /var/www/html/payment/storage/logs
+
+WORKDIR /var/www/html/payment/
+RUN composer update
+RUN composer install --optimize-autoloader --no-dev
+RUN composer dumpautoload -o
+
+# Restart module
+RUN a2enmod rewrite
+RUN a2enmod ssl
+RUN a2enmod headers
+RUN ["/bin/bash","script.sh"]
+
+#php tuning
+RUN php artisan key:generate
+RUN php artisan cache:clear
+RUN php artisan config:cache
+#RUN php artisan route:cache
+#RUN php artisan cache:clear
+#RUN php artisan migrate
+
+CMD /usr/sbin/apache2ctl -D FOREGROUND
